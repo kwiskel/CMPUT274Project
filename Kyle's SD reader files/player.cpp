@@ -10,7 +10,7 @@ SD card attached to SPI bus (Arduino MEGA)
 MOSI -- ICSP 4 or pin 50 
 MISO -- ICSP pin 1 or pin 51
 CS -- pin 53 (default)
-CLK - ICSP 3 or pin 52
+SCK - ICSP 3 or pin 52
 */
 
 void printFiles(File dir){ // prints out the files in the input directory only (just needed for SONGS folder)
