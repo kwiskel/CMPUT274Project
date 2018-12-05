@@ -14,9 +14,14 @@
 
 const int SDpin = 10; // SD Card Reader Chip Select Pin  -- default of 10 
 TMRpcm audio; //new instance of TMRpcm
+//String songFiles[];
+int songCount;
+long startTime = 0;
+bool playStatus;
+int currentVolume = 5;
+int previous[5]; // previous 5 played songs --> lowest index most recent played
 
 
-i
 
 
 int32_t littleEndian(File file,int index, int n){
@@ -44,7 +49,7 @@ void readHeader(File file){
     if(endian[i] == 'b'){ // big endian format 
       file.seek(index);
       for (int j = 0; j < fieldSize[i]; j++){
-        Serial.print(j);
+        //Serial.print(j);
         Serial.print(char(file.read()));
       }
       index += fieldSize[i];
@@ -57,92 +62,139 @@ void readHeader(File file){
 }
 
 
-void setup() {
+String * setup() {
 
   // Arduino communicates with SD card reader using SPI (SPI library needed) -- Arduino as master, Serial Peripheral Interface
   // Synchronous communcation, 
-
+  
   audio.speakerPin = 6; // initialize audio output pin
   Serial.begin(9600);
+  Serial3.begin(9600); // communicate with LCD Arduino
+  randomSeed(analogRead(4)); // generate random sead --> for shuffle feature
 
-  long startTime = 0;
-  bool playStatus;
-  int currentVolume = 5;
   Serial.println("\nFiles found on the card (name, date and size in bytes)");
   Serial.print("Begin SD: ");
   Serial.println(SD.begin(SDpin));
   File file = SD.open("/"); // instance of file class returned by SD.open(), checks for WAV files on SD card starting in root folder and checking all folders
-  int songCount = searchWav(file,"/",0,0, {});  // counts number of wav files
+  songCount = searchWav(file,"/",0,0, {});  // counts number of wav files
   Serial.print("Total number of songs: ");
   Serial.println(songCount); // prints out number of songs found
   String songFiles[songCount];
-  file.close();
   file = SD.open("/"); // opens file in root directory
   searchWav(file,"/",0,1,songFiles); // creates an array of song fileName (function edits array (don't need to return array)) 
   // -- calls same function twice so as to avoid dynamic array creation
-  file.close(); // closes file and ensures data is physcially saved to SD card
-  int songIndex = 0; // read from flash memory or EEPROM to save last playing song?
-  file = SD.open("song.wav");
-  //readHeader(file);  
-  readHeader(file);
-  printLength(songLength(file));
-  file.close();
-  Serial.println(getName(songFiles[0]));
+  Serial.println();
+
+  // connect to other Arduino -- (using code from Assignment#2)
+  // "server" arduino is Arduino with Audio, "client" Arduino is arduino with LCD
+  //serverSetup();
+  //sendInitialInfo();
+
+  return songFiles;
+  
+}
+
+void loop(String songFiles[]) {
+  
+  
   while(true){
-    if(Serial.available()){
-      char command = Serial.read();
-      // replace with commands from LCD 
-      if(command == 'p'){ // play and pause song
-         playPause();
-      }else if(command == '0'){ // play song 0
-        startTime = millis();
-        playSong(songFiles[0]);
-        songIndex = 0;
-      }else if(command == '1'){ // play song 1
-        startTime = millis();
-        playSong(songFiles[1]);
-        songIndex = 1;
-      }else if(command == 'd'){ //turn volume down
-        changeVolume(currentVolume,0);
-      }else if(command == 'u'){ //turn volume up
-        changeVolume(currentVolume,1);
-      }else if(command == 'e'){ //list elapsed time / total time
-        Serial.print("Elapsed Time: ");
-        Serial.println((millis()-startTime)/1000);
-        printLength(songLength(SD.open(songFiles[songIndex])));
-      }else if (command == 't'){ // print title of current song
-        Serial.println(getName(songFiles[songIndex]));
-      }else if(command == 'a'){ // print artist of current song
-        Serial.println(getArtist(songFiles[songIndex]));
+    if (Serial.available()){
+      char byteR = Serial.read();
+      Serial.println(byteR);
+      if(byteR == 'p'){
+        playPause();
+        if(audio.isPlaying()){
+          Serial.println("playing");
+        }else{
+          Serial.println("paused");
+        }
+      }else if(byteR == 's'){ //play new song --> next byte is index of song
+        while(!Serial.available()){
+          
+        }
+        char song = Serial.read();
+        int index = (song)-'0'; // convert char to int 
+        Serial.println(index);
+        playSong(songFiles[index]); // play new song (also shift previous);
+        shiftPrevious(int(song));
+      }else if(byteR == 'u'){ // volume up
+        currentVolume = changeVolume(currentVolume,1);
+        Serial.print("Current volume: ");
+        Serial.println(currentVolume);
+      }else if(byteR == 'd'){ // volume down
+        currentVolume = changeVolume(currentVolume,0);
+        Serial.print("Current volume: ");
+        Serial.println(currentVolume);
       }
     }
   }
-  // read list information (metadata) use file.seek() to go to end
-  
-  
-  /* read bytes from wav file
-  while(file.available()){
-    uint8_t byteR = file.read();
-    Serial.println(byteR);
-  }*/
-
   
   
 }
 
-void loop() {
-
-  // need play/pause status (for display on LCD)
-  //bool playStatus = false; // playing = true, paused = false
-  // start time status
-  //long startTime = 0;
-  // need elapsed status
-  //long elapsedSeconds = 0;
-  
-  // main function
-  // receive input from board or other Arduino to perform functions
+void clientSetup(){ // LCD Arduino Setup
   
 }
+
+void serverSetup(){ // Audio Arduino Setup
+  
+}
+
+void sendInitialInfo(char type, String files[]){ // send any information to other Arduino (song information)
+ // Once setup send begin signal
+ Serial3.write('b');
+ // send all song names + artists in order
+ for (int i = 0; i < songCount; i++){
+  // send 's' then Song name then carriage return and 'a' then artist name
+  Serial3.write('s');
+  char sName = getName(files[i]);
+  sendSerial3(sName);// send sName
+  Serial3.write('\r');
+  Serial3.write('a');
+  char aName = getArtist(files[i]);
+  sendSerial3(aName);// send aName;
+ }
+}
+
+void sendSerial3(char bytes[]){
+  int aSize = sizeof(bytes)/sizeof(bytes[0]); 
+  for (int i = 0;  i < aSize; i ++){
+    Serial3.write(bytes[i]);
+  }
+}
+
+
+
+// following 2 functions can be implemented in LCD code (arduino)
+void shuffleSong(){
+  //pick random song next (based on previous songs played)
+  int nextRandom = 0;
+  while(true){
+    // generate random number between 0 and (songCount-1) -- index of songs 
+    // random number is not last 5 played songs unless less than 5 songs*
+    nextRandom = random(0,songCount); // between 0 and songCount-1 
+    if(songCount <=5){
+      break;
+    }else{ // more than 5 songs
+      for (int i =0; i < 5; i++){
+        if (previous[i] == nextRandom){
+          // generate another random
+          i = 5;
+        }
+      }
+    }
+    
+  }
+}
+
+void shiftPrevious(int last){ //shifts data in previous songs (when starting playing song);
+  for (int i = 4; i > 1; i++){
+    previous[i] = previous[i-1]; // shift and loses 6th recently played
+  }
+  previous[0] = last;
+  
+}
+
 
 int songLength(File file){ // returns the length of the song in seconds
   int seconds = 0;
@@ -155,11 +207,12 @@ int songLength(File file){ // returns the length of the song in seconds
   // byteRate
   int32_t byteRate = littleEndian(file,28,4);
   seconds = byteSize/byteRate;
-  file.close();
   return seconds;
   
   
 }
+
+
 
 void printLength(int seconds){
   // prints out length of song in minutes and seconds
@@ -175,22 +228,24 @@ void printLength(int seconds){
 }
 
 
-String getName(String f){
+char* getName(String f){
   // returns name of song 
   char fName[f.length()];
-  f.toCharArray(fName,f.length());
+  f.toCharArray(fName,f.length()+1);
+  //Serial.print("Fname: ");
+  //Serial.println(fName);
   char songName[32];
   audio.listInfo(fName,songName,0);
-  return (String(songName));
+  return ((songName));
 }
 
-String getArtist(String f){
+char* getArtist(String f){
   // returns artist of song
   char fName[f.length()];
-  f.toCharArray(fName,f.length());
+  f.toCharArray(fName,f.length()+1);
   char artistName[32];
   audio.listInfo(fName,artistName,1);
-  return (String(artistName));
+  return ((artistName));
 }
 
 
@@ -232,12 +287,25 @@ int searchWav(File dir,String location, int count, int save, String arr[]){
 
 void playSong(String f){ // plays new song with file location as input
   char fName[f.length()];
-  f.toCharArray(fName,f.length());
+  f.toCharArray(fName,f.length()+1);
   if(audio.isPlaying()){ // check if playing another song and stop playback
+    Serial.println("audioplaying");
+    
     audio.stopPlayback();
   } 
+  Serial.println(fName);
    // play new file
   audio.play(fName);
+  Serial.print("Playing Song: ");
+  Serial.println(getName(f));
+  Serial.print("Artist: ");
+  Serial.println(getArtist(f));
+  f.toCharArray(fName,f.length()+1);
+  File file = SD.open(fName);
+  //Serial.println(file.name());
+  //readHeader(file);  // prints out header info
+  printLength(songLength(file)); // prints out length of song in minutes/seconds
+  file.close();
 }
 
 void playPause(){ // pauses or plays song
@@ -251,7 +319,7 @@ void stopSong(){
 int changeVolume(int currentVolume, int change){
   
   if(change == 1){ //up volume by 1
-     if(currentVolume == 7){
+     if(currentVolume == 6){
       //max volume -- > no change
      }else{
       audio.volume(1); // increment volume
@@ -268,9 +336,11 @@ int changeVolume(int currentVolume, int change){
   return currentVolume;
 }
 
+
 int main(){
-  setup();
+  String songFiles[] = setup();
   while(true){
     loop();
   }
+  return 0;
 }
