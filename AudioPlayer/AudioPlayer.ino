@@ -17,9 +17,10 @@ TMRpcm audio; //new instance of TMRpcm
 //String songFiles[];
 int songCount;
 long startTime = 0;
-bool playStatus;
+bool playStatus = false;
 int currentVolume = 5;
 int previous[5]; // previous 5 played songs --> lowest index most recent played
+
 
 
 
@@ -86,8 +87,8 @@ void setup() {
   Serial.println();*/
   // connect to other Arduino -- (using code from Assignment#2)
   // "server" arduino is Arduino with Audio, "client" Arduino is arduino with LCD
-  serverSetup();
-  sendInitialInfo();
+  
+ 
 
   
   
@@ -108,13 +109,17 @@ void loop() {
   // -- calls same function twice so as to avoid dynamic array creation
   Serial.println("done setup");
   Serial.println();
+ // if(serverSetup()){
+    //sendInitialInfo(songFiles); 
+    //Serial.println("Connected");
+  //}
   while(true){
     if (Serial.available()){
       char byteR = Serial.read();
       Serial.println(byteR);
-      if(byteR == 'p'){
+      if(byteR == 'p' && audio.isPlaying()){
         playPause();
-        if(audio.isPlaying()){
+        if(playStatus){
           Serial.println("playing");
         }else{
           Serial.println("paused");
@@ -143,29 +148,151 @@ void loop() {
   
 }
 
-void clientSetup(){ // LCD Arduino Setup
-  
+bool clientSetup(){ // LCD Arduino Setup
+  /*  Client sends 'a' --> ask for connection
+   *  Server sends 's' --> server acknowlegment
+   *  Client sends 'c' --> client acknowlegment
+   *  Then connected --> client can send starting info
+   */
+   Serial3.write('a'); // conection request
+   while(true){ // keep looking for 's'
+    if(Serial3.available()){
+      char byteR = Serial3.read();
+      if(byteR == 's'){ // server acknowlegment
+        Serial.println("Connected");
+        Serial3.write('c'); // acknowlegment
+        return true;
+      }
+    }
+   }
+   return false;
 }
 
-void serverSetup(){ // Audio Arduino Setup
-  
-}
-
-void sendInitialInfo(char type, String files[]){ // send any information to other Arduino (song information)
+void sendInitialInfo(String files[]){ // send any information to other Arduino (song information)
  // Once setup send begin signal
  Serial3.write('b');
+ // send songCount
+ Serial3.write(char(songCount));
  // send all song names + artists in order
  for (int i = 0; i < songCount; i++){
-  // send 's' then Song name then carriage return and 'a' then artist name
-  Serial3.write('s');
-  char sName = getName(files[i]);
+  // sendSong name then carriage return then artist name then carriage return
+  char *sName = getName(files[i]);
+  // send length of name
+  int sL= sizeof(sName)/sizeof(sName[0]);
+  Serial3.write(char(sL)); // cast to char
   sendSerial3(sName);// send sName
   Serial3.write('\r');
-  Serial3.write('a');
-  char aName = getArtist(files[i]);
+  char *aName = getArtist(files[i]);
+  // send length of artist
+  int aL= sizeof(aName)/sizeof(aName[0]);
+  Serial3.write(char(aL)); // cast to char
   sendSerial3(aName);// send aName;
+  Serial3.write('\r');
  }
+ //Serial3.write('e'); // end 
 }
+String** receiveInitial(){ // client receives initial song info
+  /*  Server send begin signal 'b'
+   *  Server send songCount signal
+   *  All song data follows --> song name, then '\r'  then artist name then '\r'
+   *  Server sends end signal 'e'
+   */
+  while(true){ //  wait for 'b'
+    if(Serial3.available()){
+      char byteR = Serial3.read();
+      if(byteR == 'b'){ //begin signal received
+        Serial.println("begin receiving");
+        while(true){ // wait for size
+          if (Serial3.available()){
+            byteR = Serial3.read();
+            int songCount = int(byteR); // cast back to int
+            Serial.println(songCount);
+            String songList[2][songCount];
+            int i = 0;
+            while(i < songCount){ // wait for all songs
+              
+              //song
+              int sL = 0;
+              while(true){
+                //wait for size of songName;
+                if(Serial3.available()){
+                  byteR = Serial3.read();
+                  sL = int(byteR); //recast to int
+                  break;
+                }
+              }
+              char sName[sL];
+              int j = 0;
+              while(byteR != '\r'){ // song Name
+                if(Serial3.available()){
+                  sName[j] = Serial3.read();
+                  j++;
+                }
+              }
+              
+              // artist
+              int aL = 0;
+              while(true){
+                //wait for size of artistName;
+                if(Serial3.available()){
+                  byteR = Serial3.read();
+                  aL = int(byteR); //recast to int
+                  break;
+                }
+              }
+              char aName[aL];
+              j = 0;
+              while(byteR != '\r'){ // artist Name
+                if(Serial3.available()){
+                  aName[j] = Serial3.read();
+                  j++;
+                }
+              }
+              songList[0][i] = String(aName); //artist 
+              songList[1][i] = String(sName); //song
+              
+            }
+
+            // done reading all songs
+            //return songList;
+          }
+        }
+      }
+    }
+  }
+  return 0;
+   
+}
+
+bool serverSetup(){ // Audio Arduino Setup
+  /*  Client sends 'a' --> ask for connection
+   *  Server sends 's' --> server acknowlegment
+   *  Client sends 'c' --> client acknowlegment
+   *  Then connected --> client can send starting info
+   */
+  while(true){ // keep looking for 'a'
+    if(Serial3.available()){
+      char byteR = Serial3.read();
+      if(byteR == 'a'){ //received request from client
+        Serial.println("Connection Request");
+        Serial3.write('s'); //server responds
+        Serial.println("Server acknowlegment");
+        while(true){
+          // wait for acknowlegment
+          if(Serial3.available()){
+            byteR = Serial3.read();
+            if(byteR == 'c'){ // client acknowlegment
+              Serial.println("Connected");
+              return true;
+            }
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
 
 void sendSerial3(char bytes[]){
   int aSize = sizeof(bytes)/sizeof(bytes[0]); 
@@ -317,9 +444,15 @@ void playSong(String f){ // plays new song with file location as input
   //readHeader(file);  // prints out header info
   printLength(songLength(file)); // prints out length of song in minutes/seconds
   file.close();
+  playStatus = true;
 }
 
 void playPause(){ // pauses or plays song
+  if(playStatus){
+    playStatus = false;
+  }else{
+    playStatus = true;
+  }
   audio.pause();
 }
 
