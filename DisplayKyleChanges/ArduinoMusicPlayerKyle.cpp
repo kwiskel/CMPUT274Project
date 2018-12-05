@@ -50,6 +50,11 @@ void setup() {
   */
 }
 
+void sendSong(int index){
+  Serial3.write('s');
+  Serial3.write(index);
+}
+
 
 void drawPlayButton(bool pressed, uint8_t position) {
 
@@ -236,6 +241,7 @@ void displayPage(bool inHomeScreen) {
     if(p.z > ts.pressureThreshhold) {
       if((607 < p.x) && (p.x  < 743) && (585 < p.y)) { // Play Button 1
         Serial.println("Song 1 selected.");
+        sendSong(0);
 
         // Draws the pink play arrow on the play button at position 0 to give
         // user feedback
@@ -246,6 +252,7 @@ void displayPage(bool inHomeScreen) {
 
       else if((444 < p.x) && (p.x < 607) && (585 < p.y)) { // Play Button 2
         Serial.println("Song 2 selected.");
+        sendSong(1);
 
         // Draws the pink play arrow on the play button at position 1 to give
         // user feedback
@@ -256,6 +263,7 @@ void displayPage(bool inHomeScreen) {
 
       else if((295 < p.x) && (p.x < 444) && (585 < p.y)) { // Play Button 3
         Serial.println("Song 3 selected");
+        sendSong(2);
 
         // Draws the pink play arrow on the play button at position 2 to give
         // user feedback
@@ -266,6 +274,7 @@ void displayPage(bool inHomeScreen) {
 
       else if((p.x < 295) && (585 < p.y)) { // Play Button 4
         Serial.println("Song 4 selected");
+        sendSong(3);
 
         // Draws the pink play arrow on the play button at position 3 to give
         // user feedback
@@ -322,6 +331,8 @@ int main() {
   tft.setCursor(6, 56+(i*46));
   tft.print("Connecting...");
   Serial.println(clientSetup()); // plug in Audio Arduino first
+  delay(1000);
+  sendSong(2); //play song index 2
   // receive song names + artists from other Arduino
   bool inHomeScreen = true;
   // Read from the Serial3 to generate a 2D array "songList", in which you have
