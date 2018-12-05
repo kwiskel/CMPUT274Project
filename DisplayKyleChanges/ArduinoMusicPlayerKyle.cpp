@@ -274,7 +274,7 @@ void displayPage(bool inHomeScreen) {
 
       else if((p.x < 295) && (585 < p.y)) { // Play Button 4
         Serial.println("Song 4 selected");
-        sendSong(3);
+        sendSong(3);      
 
         // Draws the pink play arrow on the play button at position 3 to give
         // user feedback
@@ -322,6 +322,78 @@ bool clientSetup(){ // LCD Arduino Setup
     }
    }
    return false;
+}
+char* receiveInitial(){ // client receives initial song info
+  /*  Server send begin signal 'b'
+   *  Server send songCount signal
+   *  All song data follows --> song name, then '\r'  then artist name then '\r'
+   *  Server sends end signal 'e'
+   */
+  while(true){ //  wait for 'b'
+    if(Serial3.available()){
+      char byteR = Serial3.read();
+      if(byteR == 'b'){ //begin signal received
+        Serial.println("begin receiving");
+        while(true){ // wait for size
+          if (Serial3.available()){
+            byteR = Serial3.read();
+            int songCount = int(byteR); // cast back to int
+            Serial.println(songCount);
+            String songList[2][songCount];
+            int i = 0;
+            while(i < songCount){ // wait for all songs
+              
+              //song
+              int sL = 0;
+              while(true){
+                //wait for size of songName;
+                if(Serial3.available()){
+                  byteR = Serial3.read();
+                  sL = int(byteR); //recast to int
+                  break;
+                }
+              }
+              char sName[sL];
+              int j = 0;
+              while(byteR != '\r'){ // song Name
+                if(Serial3.available()){
+                  sName[j] = Serial3.read();
+                  j++;
+                }
+              }
+              
+              // artist
+              int aL = 0;
+              while(true){
+                //wait for size of artistName;
+                if(Serial3.available()){
+                  byteR = Serial3.read();
+                  aL = int(byteR); //recast to int
+                  break;
+                }
+              }
+              char aName[aL];
+              j = 0;
+              while(byteR != '\r'){ // artist Name
+                if(Serial3.available()){
+                  aName[j] = Serial3.read();
+                  j++;
+                }
+              }
+              songList[0][i] = String(aName); //artist 
+              songList[1][i] = String(sName); //song
+              
+            }
+
+            // done reading all songs
+            //return songList;
+          }
+        }
+      }
+    }
+  }
+  return 0;
+   
 }
 
 
