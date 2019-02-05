@@ -1,0 +1,144 @@
+---------------------------------------------------
+| Name: Cameron Hildebrandt,1584696
+| Name: Kyle Wiskel, 1540485
+| CMPUT 274, Fall 2018
+| Final Project - Arduino Music Player; README
+---------------------------------------------------
+
+Included Files:
+  arduinoMusicPlayer.cpp
+  arduinoMusicPlayerDisplay.cpp
+  Songs.zip
+  Makefile
+
+
+Libraries Used:
+  - Arduino.h                   -- Arduino Library
+  - Adafruit_GFX.h              -- Core Graphics Library
+  - Adafruit_ILI9341.h          -- Hardware-Specific Display Library
+  - TouchScreen.h               -- Touchscreen Library
+  - Fonts/FreeSansBold18pt7b.h  -- Display Font
+  - Fonts/FreeSans9pt7b.h       -- Display Font
+  - SD.h                        -- Library to Read/Write to SD Cards
+  - TMRpcm.h                    -- Audio Library for Asynchronous Playback
+
+
+Assumptions:
+  - The user has some experience using Arduinos and understands the basics of
+    an Arduino board
+  - The user has a basic understanding of the command line.
+
+
+Program Functionality:
+  The program allows you to turn your Arduino and Adafruit tft display into
+  a touchscreen music player. When you first start the program, the display
+  Arduino will display a message sating that it is awaiting connection to the
+  player Arduino. Once a connection between the two has been established, the
+  program will open the home screen, where you can select one of the four song
+  to play. This will open the visualizer page and begin playing the music.
+  When you are done playing the song, or at any time that you wish, you can
+  press the back button, which will not stop the music from playing but will
+  bring you back to the home screen, where you can select another song to play.
+
+
+Running Instructions:
+  The code for the display Arduino is to be compiled and uploaded to the
+  Arduino using the Makefile. The code for the player Arduino must be compiled
+  and uploaded using the Arduino IDE.
+
+  Upload the songs in the included Songs.zip file on to an SD card, and place
+  the card into the player Arduino.
+
+  Press the reset button on the player Arduino first and then press the reset
+  button on the display Arduino. You will see a "Connecting to player..."
+  notification, which should quickly be replaced with a "Connection
+  Successful!" notification, followed by the home screen being drawn.
+
+  Follow the onscreen prompts to run the rest of the program.
+
+  Note: Since the visualizer page needs to be run on a loop and drawing the
+        visualizer takes an unfortunately large amount of time, the back button
+        must be held until the loop has been completed at least once.
+
+
+
+Arduino Pieces Required:
+  - 2x Arduino Mega 2560
+  - 1x Adafruit 2.4" TFT LCD Display (SPI Mode)
+  - 1x SD Card Reader
+  - 1x Speaker (any speaker that uses positive and negative inputs will work)
+  - 1x SD card preloaded with properly formatted .wav files
+  - 21x Jumper Wires
+
+
+Arduino Wiring Instructions:
+  Display to display Arduino:
+    Display --- Arduino
+      GND   ---   GND
+      Vin   ---   5V
+      CLK   ---   D52  (D52 == Digital Pin 52)
+      MISO  ---   D50
+      MOSI  ---   D51
+      CS    ---   D36
+      D/C   ---   D37
+      Y+    ---   A2
+      X+    ---   D9
+      Y-    ---   D8
+      X-    ---   A3
+
+  SD Card Reader to player Arduino:
+     Reader --- Arduino
+      GND   ---  ICSP6
+      MOSI  ---  ICSP4
+      MISO  ---  ICSP1
+      CS    ---   D10
+      CLK   ---  ICSP3
+
+
+  Speaker to player Arduino:
+    Speaker --- Arduino
+      GND   ---   GND
+      POS   ---   D6
+
+  Player Arduino to display Arduino:
+     Player --- Display
+      GND   ---   GND
+      TX3   ---   RX3
+      RX3   ---   TX3
+
+
+Known Limitations:
+  - We were unable to read the raw amplitude data from the .wav file and pass
+    that to the display Arduino, so the DFT does not represent the songs
+    playing. The visualizer can display a randomized DFT (either a randomized
+    input or output) or specific frequencies from generating a pure sin wave.
+  - The transform used is a DFT, which is an n squared algorithm, could be
+    made faster by instead implementing an FFT algorithm, which preforms in
+    n log n time.
+  - The song data is hard coded. We were able to read the song information
+    from the .wav file header and send it over to the display Arduino, but
+    unfortunately we were not able to get the song information into the
+    functions responsible for displaying the names.
+
+    Note: Hopefully these small pitfalls can be overlooked based on the
+          relatively high complexity of our project, as operations such as
+          DFT and reading the header of the .wav file took a lot of time.
+
+
+Planned Features:
+  - Player Arduino passes song names and artists to the display Arduino.
+  - Player Arduino passes the amplitudes of the song to be Fourier transformed
+    and visualized.
+  - Allow a variable amount of songs and use a joystick to scroll through
+    the home page.
+  - Colour picker for the visualizer gradient.
+  - Speeding up the display by remembering it's current state and only
+    drawing the necessary pixels when clearing the display.
+
+
+References:
+  Fourier Transform:
+  - https://en.wikipedia.org/wiki/Cooley–Tukey_FFT_algorithm
+  - https://www.youtube.com/watch?v=mkGsMWi_j4Q
+  - https://2captiv8.blogspot.com/2016/06/howto-design-code-music-
+    visualization-visualizer-audio-linux-c-sdl-fourier.html
